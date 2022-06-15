@@ -4,82 +4,52 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"hash/fnv"
 	"io"
 	"log"
-	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestValues_Decode(t *testing.T) {
-
-	var useCases = []struct {
-		description string
-		values      []interface{}
-		hasError    bool
-	}{
-		{
-			description: "string coding",
-			values:      []interface{}{"abc", "xyz", "klm", "xyz", "eee"},
-		},
-		{
-			description: "int coding",
-			values:      []interface{}{int(0), int(10), int(30), int(300), int(4)},
-		},
-		{
-			description: "int8 coding",
-			values:      []interface{}{int8(3), int8(10), int8(30), int8(121), int8(4)},
-		},
-		{
-			description: "bool coding",
-			values:      []interface{}{true, false},
-		},
-		{
-			description: "[]byte coding",
-			values:      []interface{}{[]byte("abc"), []byte("xyz")},
-		},
-		{
-			description: "custom type coding",
-			values:      []interface{}{&foo{ID: 10, Name: "abc"}, &foo{ID: 20, Name: "xyz"}},
-		},
-		{
-			description: "custom type error coding",
-			values:      []interface{}{&bar{ID: 10, Name: "abc"}, &bar{ID: 20, Name: "xyz"}},
-			hasError:    true,
-		},
+func testValues_Decode[T comparable](t *testing.T, useCaseDescription string, useCaseValues []T, useCaseHasError bool) {
+	values := newValues[T]()
+	for _, item := range useCaseValues {
+		_, err := values.put(item)
+		assert.Nil(t, err, useCaseDescription)
 	}
-
-	for _, useCase := range useCases {
-		values := newValues()
-		for _, item := range useCase.values {
-			_, err := values.put(item)
-			assert.Nil(t, err, useCase.description)
-		}
-		writer := new(bytes.Buffer)
-		err := values.Encode(writer)
-		if useCase.hasError {
-			assert.NotNil(t, err, useCase.description)
-			cloned := newValues()
-			cloned.useType(reflect.TypeOf(useCase.values[0]))
-			err = cloned.Decode(writer)
-			assert.NotNil(t, err)
-			continue
-		}
-		if !assert.Nil(t, err, useCase.description) {
-			log.Print(err)
-			continue
-		}
-		cloned := newValues()
-		cloned.useType(reflect.TypeOf(useCase.values[0]))
+	writer := new(bytes.Buffer)
+	err := values.Encode(writer)
+	if useCaseHasError {
+		assert.NotNil(t, err, useCaseDescription)
+		cloned := newValues[T]()
 		err = cloned.Decode(writer)
-		assert.Nil(t, err, useCase.description)
-		assert.EqualValues(t, len(values.data), len(cloned.data))
-		for i := range values.data {
-			assert.EqualValues(t, values.data[i], cloned.data[i], fmt.Sprintf("[%d]: %v", i, useCase.description))
-		}
+		assert.NotNil(t, err)
+		return
 	}
+	if !assert.Nil(t, err, useCaseDescription) {
+		log.Print(err)
+		return
+	}
+	cloned := newValues[T]()
+	err = cloned.Decode(writer)
+	assert.Nil(t, err, useCaseDescription)
+	assert.EqualValues(t, len(values.data), len(cloned.data))
+	for i := range values.data {
+		assert.EqualValues(t, values.data[i], cloned.data[i], fmt.Sprintf("[%d]: %v", i, useCaseDescription))
+	}
+}
 
+func TestValues_Decode(t *testing.T) {
+	testValues_Decode[string](t, "string coding", []string{"abc", "xyz", "klm", "xyz", "eee"}, false)
+	testValues_Decode[int](t, "int coding", []int{int(0), int(10), int(30), int(300), int(4)}, false)
+	testValues_Decode[int8](t, "int8 coding", []int8{int8(3), int8(10), int8(30), int8(121), int8(4)}, false)
+	testValues_Decode[bool](t, "bool coding", []bool{true, false}, false)
+	/**
+	testValues_Decode[[]byte](t, "[]byte coding", [][]byte{[]byte("abc"), []byte("xyz")}, false)
+	testValues_Decode[*foo](t, "custom type coding", []*foo{&foo{ID: 10, Name: "abc"}, &foo{ID: 20, Name: "xyz"}}, false)
+	testValues_Decode[*bar](t, "custom type error coding", []*bar{&bar{ID: 10, Name: "abc"}, &bar{ID: 20, Name: "xyz"}}, false)
+	*/
 }
 
 type foo struct {

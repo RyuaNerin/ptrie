@@ -49,7 +49,7 @@ Where
 
 ```go
 
-    trie := ptrie.New()
+    trie := ptrie.New[string]()
     for key, value := range pairs {
         if err = trie.Put(key, value); err != nil {
             log.Fatal(err)
@@ -59,7 +59,7 @@ Where
     has := trie.Has(key)
     value, has := trie.Get(key)
     //...
-    matched := trie.MatchAll(input,  func(key []byte, value interface{}) bool {
+    matched := trie.MatchAll(input,  func(key []byte, value string) bool {
         fmt.Printf("matched: key: %s, value %v\n", key, value)
         return true 
     })
@@ -71,7 +71,7 @@ Where
 
 ```go
 
-    trie := ptrie.New()
+    trie := ptrie.New[string]()
     
     for key, value := range pairs {
          if err = trie.Put(key, value); err != nil {
@@ -96,7 +96,7 @@ Where
     var v *V
     
 
-    trie := ptrie.New()
+    trie := ptrie.New[string]()
     trie.UseType(reflect.TypeOf(v))
     if err := trie.Decode(reader); err != nil {
     	log.Fatal(err)
@@ -108,7 +108,7 @@ Where
 
 ```go
 
-    trie.Walk(func(key []byte, value interface{}) bool {
+    trie.Walk(func(key []byte, value string) bool {
 		fmt.Printf("key: %s, value %v\n", key, value)
 		return true
 	})
@@ -131,7 +131,7 @@ Where
     var input []byte
     ...
 
-    matched := trie.MatchPrefix(input,  func(key []byte, value interface{}) bool {
+    matched := trie.MatchPrefix(input,  func(key []byte, value string) bool {
         fmt.Printf("matched: key: %s, value %v\n", key, value)
         return true 
     })
@@ -145,7 +145,7 @@ Where
     var input []byte
     ...
 
-    matched := trie.MatchAll(input,  func(key []byte, value interface{}) bool {
+    matched := trie.MatchAll(input,  func(key []byte, value string) bool {
         fmt.Printf("matched: key: %s, value %v\n", key, value)
         return true 
     })

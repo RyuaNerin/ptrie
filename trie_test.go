@@ -4,26 +4,26 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
+	"path"
+	"strings"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/viant/assertly"
 	"github.com/viant/toolbox"
-	"os"
-	"path"
-	"reflect"
-	"strings"
-	"testing"
 )
 
 func TestTrie_Get(t *testing.T) {
 
 	useCases := []struct {
 		description string
-		keywords    map[string]interface{}
+		keywords    map[string]int
 		key         string
 	}{
 		{
 			description: "direct_match_get",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abc": 1,
 				"zyx": 2,
 				"mln": 3,
@@ -33,7 +33,7 @@ func TestTrie_Get(t *testing.T) {
 
 		{
 			description: "no match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abc": 1,
 				"zyx": 2,
 				"mln": 3,
@@ -42,7 +42,7 @@ func TestTrie_Get(t *testing.T) {
 		},
 		{
 			description: "no close match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"k2":  1,
 				"zyx": 2,
 				"mln": 3,
@@ -52,7 +52,7 @@ func TestTrie_Get(t *testing.T) {
 		},
 		{
 			description: "multi_match_get",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abc":  1,
 				"ab":   10,
 				"abcd": 12,
@@ -68,7 +68,7 @@ func TestTrie_Get(t *testing.T) {
 
 	for i := range useCases {
 		useCase := useCases[i]
-		trie := New()
+		trie := New[int]()
 		for k, v := range useCase.keywords {
 			err := trie.Put([]byte(k), v)
 			assert.Nil(t, err, useCase.description)
@@ -87,14 +87,14 @@ func TestTrie_Get(t *testing.T) {
 func TestTrie_MatchPrefix(t *testing.T) {
 	useCases := []struct {
 		description     string
-		keywords        map[string]interface{}
-		matchedKeywords map[string]interface{}
+		keywords        map[string]int
+		matchedKeywords map[string]int
 		testMultiMatch  bool
 		input           string
 	}{
 		{
 			description: "multi match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abcdef":   1,
 				"abcdefgh": 2,
 				"abc":      3,
@@ -103,7 +103,7 @@ func TestTrie_MatchPrefix(t *testing.T) {
 				"a":        5,
 			},
 			testMultiMatch: true,
-			matchedKeywords: map[string]interface{}{
+			matchedKeywords: map[string]int{
 				"abc": 3,
 				"a":   5,
 			},
@@ -112,7 +112,7 @@ func TestTrie_MatchPrefix(t *testing.T) {
 
 		{
 			description: "single match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abcdef":   1,
 				"abcdefgh": 2,
 				"abc":      3,
@@ -121,14 +121,14 @@ func TestTrie_MatchPrefix(t *testing.T) {
 				"a":        5,
 			},
 			testMultiMatch: false,
-			matchedKeywords: map[string]interface{}{
+			matchedKeywords: map[string]int{
 				"a": 5,
 			},
 			input: "abc",
 		},
 		{
 			description: "no match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abcdef":   1,
 				"abcdefgh": 2,
 				"abc":      3,
@@ -143,12 +143,12 @@ func TestTrie_MatchPrefix(t *testing.T) {
 
 	for i := range useCases {
 		useCase := useCases[i]
-		trie := New()
+		trie := New[int]()
 		for k, v := range useCase.keywords {
 			_ = trie.Put([]byte(k), v)
 		}
-		actualMatch := map[string]interface{}{}
-		onMatch := func(key []byte, value interface{}) bool {
+		actualMatch := map[string]int{}
+		onMatch := func(key []byte, value int) bool {
 			actualMatch[string(key)] = value
 			return useCase.testMultiMatch
 		}
@@ -163,14 +163,14 @@ func TestTrie_MatchPrefix(t *testing.T) {
 func TestTrie_MatchAll(t *testing.T) {
 	useCases := []struct {
 		description     string
-		keywords        map[string]interface{}
-		matchedKeywords map[string]interface{}
+		keywords        map[string]int
+		matchedKeywords map[string]int
 		testMultiMatch  bool
 		input           string
 	}{
 		{
 			description: "multi match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abcdef":   1,
 				"abcdefgh": 2,
 				"abc":      3,
@@ -181,7 +181,7 @@ func TestTrie_MatchAll(t *testing.T) {
 				"a":        5,
 			},
 			testMultiMatch: true,
-			matchedKeywords: map[string]interface{}{
+			matchedKeywords: map[string]int{
 				"abc": 3,
 				"a":   5,
 				"bc":  10,
@@ -194,12 +194,12 @@ func TestTrie_MatchAll(t *testing.T) {
 
 	for i := range useCases {
 		useCase := useCases[i]
-		trie := New()
+		trie := New[int]()
 		for k, v := range useCase.keywords {
 			_ = trie.Put([]byte(k), v)
 		}
-		actualMatch := map[string]interface{}{}
-		onMatch := func(key []byte, value interface{}) bool {
+		actualMatch := map[string]int{}
+		onMatch := func(key []byte, value int) bool {
 			actualMatch[string(key)] = value
 			return useCase.testMultiMatch
 		}
@@ -214,14 +214,14 @@ func TestTrie_MatchAll(t *testing.T) {
 func TestTrie_MatchAllWithDecodedTrie(t *testing.T) {
 	useCases := []struct {
 		description     string
-		keywords        map[string]interface{}
-		matchedKeywords map[string]interface{}
+		keywords        map[string]int
+		matchedKeywords map[string]int
 		testMultiMatch  bool
 		input           string
 	}{
 		{
 			description: "multi match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abcdef":   1,
 				"abcdefgh": 2,
 				"abc":      3,
@@ -232,7 +232,7 @@ func TestTrie_MatchAllWithDecodedTrie(t *testing.T) {
 				"a":        5,
 			},
 			testMultiMatch: true,
-			matchedKeywords: map[string]interface{}{
+			matchedKeywords: map[string]int{
 				"abc": 3,
 				"a":   5,
 				"bc":  10,
@@ -245,7 +245,7 @@ func TestTrie_MatchAllWithDecodedTrie(t *testing.T) {
 
 	for i := range useCases {
 		useCase := useCases[i]
-		trie := New()
+		trie := New[int]()
 		for k, v := range useCase.keywords {
 			_ = trie.Put([]byte(k), v)
 		}
@@ -255,16 +255,15 @@ func TestTrie_MatchAllWithDecodedTrie(t *testing.T) {
 		if !assert.Nil(t, err, useCase.description) {
 			continue
 		}
-		trie = New()
-		trie.UseType(reflect.TypeOf(1))
+		trie = New[int]()
 
 		err = trie.Decode(readWriter)
 		if !assert.Nil(t, err, useCase.description) {
 			continue
 		}
 
-		actualMatch := map[string]interface{}{}
-		onMatch := func(key []byte, value interface{}) bool {
+		actualMatch := map[string]int{}
+		onMatch := func(key []byte, value int) bool {
 			actualMatch[string(key)] = value
 			return useCase.testMultiMatch
 		}
@@ -276,19 +275,17 @@ func TestTrie_MatchAllWithDecodedTrie(t *testing.T) {
 	}
 }
 
-
-
 func TestTrie_MatchAllWithDecodedSequentiallyTrie(t *testing.T) {
 	useCases := []struct {
 		description     string
-		keywords        map[string]interface{}
-		matchedKeywords map[string]interface{}
+		keywords        map[string]int
+		matchedKeywords map[string]int
 		testMultiMatch  bool
 		input           string
 	}{
 		{
 			description: "multi match",
-			keywords: map[string]interface{}{
+			keywords: map[string]int{
 				"abcdef":   1,
 				"abcdefgh": 2,
 				"abc":      3,
@@ -299,7 +296,7 @@ func TestTrie_MatchAllWithDecodedSequentiallyTrie(t *testing.T) {
 				"a":        5,
 			},
 			testMultiMatch: true,
-			matchedKeywords: map[string]interface{}{
+			matchedKeywords: map[string]int{
 				"abc": 3,
 				"a":   5,
 				"bc":  10,
@@ -312,7 +309,7 @@ func TestTrie_MatchAllWithDecodedSequentiallyTrie(t *testing.T) {
 
 	for i := range useCases {
 		useCase := useCases[i]
-		trie := New()
+		trie := New[int]()
 		for k, v := range useCase.keywords {
 			_ = trie.Put([]byte(k), v)
 		}
@@ -322,15 +319,14 @@ func TestTrie_MatchAllWithDecodedSequentiallyTrie(t *testing.T) {
 		if !assert.Nil(t, err, useCase.description) {
 			continue
 		}
-		trie = New()
-		trie.UseType(reflect.TypeOf(1))
+		trie = New[int]()
 		err = trie.DecodeSequentially(readWriter)
 		if !assert.Nil(t, err, useCase.description) {
 			continue
 		}
 
-		actualMatch := map[string]interface{}{}
-		onMatch := func(key []byte, value interface{}) bool {
+		actualMatch := map[string]int{}
+		onMatch := func(key []byte, value int) bool {
 			actualMatch[string(key)] = value
 			return useCase.testMultiMatch
 		}
@@ -341,7 +337,6 @@ func TestTrie_MatchAllWithDecodedSequentiallyTrie(t *testing.T) {
 		}
 	}
 }
-
 
 func TestTrie_Walk(t *testing.T) {
 	useCases := []struct {
@@ -367,15 +362,15 @@ func TestTrie_Walk(t *testing.T) {
 	}
 
 	for _, useCase := range useCases {
-		trie := New()
-		var expect = make(map[string]interface{})
-		var actual = make(map[string]interface{})
+		trie := New[int]()
+		var expect = make(map[string]int)
+		var actual = make(map[string]int)
 		for i, keyword := range useCase.keywords {
-			expect[string(keyword)] = uint32(i + 1)
-			err := trie.Put([]byte(keyword), uint32(i+1))
+			expect[string(keyword)] = int(i + 1)
+			err := trie.Put([]byte(keyword), int(i+1))
 			assert.Nil(t, err)
 		}
-		trie.Walk(func(key []byte, value interface{}) bool {
+		trie.Walk(func(key []byte, value int) bool {
 			actual[string(key)] = value
 			return true
 		})
@@ -403,7 +398,7 @@ func TestTrie_Decode(t *testing.T) {
 	}
 
 	for _, useCase := range useCases {
-		trie := New()
+		trie := New[uint32]()
 		for i, keyword := range useCase.keywords {
 			_ = trie.Put([]byte(keyword), uint32(i+1))
 		}
@@ -411,8 +406,7 @@ func TestTrie_Decode(t *testing.T) {
 		err := trie.Encode(writer)
 		assert.Nil(t, err, useCase.description)
 
-		cloned := New()
-		cloned.UseType(reflect.TypeOf(uint32(0)))
+		cloned := New[uint32]()
 
 		err = cloned.Decode(bytes.NewReader(writer.Bytes()))
 		if !assert.Nil(t, err, useCase.description) {
@@ -424,9 +418,9 @@ func TestTrie_Decode(t *testing.T) {
 	}
 }
 
-func trieToMap(trie Trie) map[string]interface{} {
-	var result = make(map[string]interface{})
-	trie.Walk(func(key []byte, value interface{}) bool {
+func trieToMap[T comparable](trie Trie[T]) map[string]T {
+	var result = make(map[string]T)
+	trie.Walk(func(key []byte, value T) bool {
 		result[string(key)] = value
 		return true
 	})
@@ -435,18 +429,17 @@ func trieToMap(trie Trie) map[string]interface{} {
 
 type perfCase struct {
 	inputs []string
-	trie   Trie
+	trie   Trie[int]
 	expect map[string]int
 }
 
 func buildUseCase(name string, maxLineLength int) (*perfCase, error) {
 	var err error
 	result := &perfCase{
-		trie:   New(),
+		trie:   New[int](),
 		inputs: make([]string, 0),
 		expect: make(map[string]int),
 	}
-	result.trie.UseType(reflect.TypeOf(true))
 	parent := toolbox.CallerDirectory(3)
 	file, err := os.Open(path.Join(parent, fmt.Sprintf("test/%v.txt", name)))
 	if err != nil {
@@ -472,7 +465,7 @@ func buildUseCase(name string, maxLineLength int) (*perfCase, error) {
 			}
 			word = " " + word + " "
 			result.expect[word]++
-			_ = result.trie.Put([]byte(word), true)
+			_ = result.trie.Put([]byte(word), 0)
 		}
 		result.inputs = append(result.inputs, line)
 	}
@@ -533,7 +526,7 @@ func testPerformanceTrieCase(t *testing.T, useCase *perfCase) {
 	var actual = make(map[string]int)
 	for i := range useCase.inputs {
 		line := useCase.inputs[i]
-		hamletLong.trie.MatchAll([]byte(line), func(key []byte, value interface{}) bool {
+		hamletLong.trie.MatchAll([]byte(line), func(key []byte, value int) bool {
 			actual[string(key)]++
 			return true
 		})
@@ -585,7 +578,7 @@ func benchmarkTrie(b *testing.B, useCase *perfCase) {
 	for k := 0; k < b.N; k++ {
 		for i := range useCase.inputs {
 			line := useCase.inputs[i]
-			hamletLong.trie.MatchAll([]byte(line), func(key []byte, value interface{}) bool {
+			hamletLong.trie.MatchAll([]byte(line), func(key []byte, value int) bool {
 				return true
 			})
 		}

@@ -1,13 +1,14 @@
 package ptrie
 
 import (
+	"log"
+	"path"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/viant/assertly"
 	"github.com/viant/toolbox"
 	"github.com/viant/toolbox/url"
-	"log"
-	"path"
-	"testing"
 )
 
 func loadData(URI string) (map[string]interface{}, error) {
@@ -68,9 +69,9 @@ func TestNodes_add(t *testing.T) {
 	}
 
 	for _, useCase := range useCases {
-		node := newValueNode([]byte("/"), 0)
+		node := newValueNode[int]([]byte("/"), 0)
 		for i, keyword := range useCase.keywords {
-			node.add(newValueNode([]byte(keyword), uint32(i+1)), useCase.merger)
+			node.add(newValueNode[int]([]byte(keyword), uint32(i+1)), useCase.merger)
 		}
 		expect, err := loadData(path.Join(parent, useCase.expectURI))
 		if !assert.Nil(t, err, useCase.description) {
@@ -147,9 +148,9 @@ func TestNodes_IndexOf(t *testing.T) {
 	}
 
 	for _, useCase := range useCases {
-		nodes := Nodes{}
+		nodes := Nodes[int]{}
 		for i := 0; i < len(useCase.prefixes); i++ {
-			nodes = append(nodes, &Node{Prefix: []byte(string(useCase.prefixes[i]))})
+			nodes = append(nodes, &Node[int]{Prefix: []byte(string(useCase.prefixes[i]))})
 		}
 		actualIndex := nodes.IndexOf(useCase.search)
 		assert.Equal(t, useCase.expectIndex, actualIndex, useCase.description)
@@ -159,10 +160,10 @@ func TestNodes_IndexOf(t *testing.T) {
 }
 
 func BenchmarkNodes_IndexOf(b *testing.B) {
-	nodes := Nodes{}
+	nodes := Nodes[int]{}
 	for i := 32; i < 98; i += 3 {
 		//fmt.Printf("%v\n", i)
-		nodes.add(&Node{Prefix: []byte{byte(i)}}, func(prev uint32) uint32 {
+		nodes.add(&Node[int]{Prefix: []byte{byte(i)}}, func(prev uint32) uint32 {
 			return 0
 		})
 	}

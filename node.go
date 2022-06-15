@@ -16,38 +16,38 @@ const (
 )
 
 //Node represents a node
-type Node struct {
+type Node[T comparable] struct {
 	Type       uint8
 	Prefix     []byte
 	ValueIndex uint32
-	Nodes
+	Nodes[T]
 	bset Bit64Set
 }
 
 type merger func(prev uint32) uint32
 
-func (n *Node) isValueType() bool {
+func (n *Node[T]) isValueType() bool {
 	return n.Type&NodeTypeValue == NodeTypeValue
 }
 
-func (n *Node) isEdgeType() bool {
+func (n *Node[T]) isEdgeType() bool {
 	return n.Type&NodeTypeEdge == NodeTypeEdge
 }
 
-func (n *Node) makeEdge() {
+func (n *Node[T]) makeEdge() {
 	n.Type = n.Type | NodeTypeEdge
 }
 
-func (n *Node) add(node *Node, merger merger) {
+func (n *Node[T]) add(node *Node[T], merger merger) {
 	if len(n.Nodes) == 0 {
-		n.Nodes = make([]*Node, 0)
+		n.Nodes = make([]*Node[T], 0)
 		n.makeEdge()
 	}
 	n.bset = n.bset.Put(node.Prefix[0])
 	n.Nodes.add(node, merger)
 }
 
-func (n *Node) walk(parent []byte, handler func(key []byte, valueIndex uint32)) {
+func (n *Node[T]) walk(parent []byte, handler func(key []byte, valueIndex uint32)) {
 	prefix := append(parent, n.Prefix...)
 	if n.isValueType() {
 		handler(prefix, n.ValueIndex)
@@ -60,7 +60,7 @@ func (n *Node) walk(parent []byte, handler func(key []byte, valueIndex uint32)) 
 	}
 }
 
-func (n *Node) matchNodes(input []byte, offset int, handler func(key []byte, valueIndex uint32) bool) bool {
+func (n *Node[T]) matchNodes(input []byte, offset int, handler func(key []byte, valueIndex uint32) bool) bool {
 	hasMatch := false
 	if n.isEdgeType() {
 		if !n.bset.IsSet(input[offset]) {
@@ -77,7 +77,7 @@ func (n *Node) matchNodes(input []byte, offset int, handler func(key []byte, val
 	return hasMatch
 }
 
-func (n *Node) match(input []byte, offset int, handler func(key []byte, valueIndex uint32) bool) bool {
+func (n *Node[T]) match(input []byte, offset int, handler func(key []byte, valueIndex uint32) bool) bool {
 	if offset >= len(input) {
 		return false
 	}
@@ -107,7 +107,7 @@ func (n *Node) match(input []byte, offset int, handler func(key []byte, valueInd
 }
 
 //Encode encode node
-func (n *Node) Encode(writer io.Writer) error {
+func (n *Node[T]) Encode(writer io.Writer) error {
 	var err error
 	if err = binary.Write(writer, binary.LittleEndian, controlByte); err == nil {
 		if err = binary.Write(writer, binary.LittleEndian, n.Type); err == nil {
@@ -126,7 +126,7 @@ func (n *Node) Encode(writer io.Writer) error {
 	return err
 }
 
-func (n *Node) size() int {
+func (n *Node[T]) size() int {
 	result := 2 + 4 + len(n.Prefix)
 	if n.isValueType() {
 		result += 4
@@ -140,7 +140,7 @@ func (n *Node) size() int {
 	return result
 }
 
-func (n *Node) encodeNodes(writer io.Writer) error {
+func (n *Node[T]) encodeNodes(writer io.Writer) error {
 	var err error
 	if !n.isEdgeType() {
 		return err
@@ -159,7 +159,7 @@ func (n *Node) encodeNodes(writer io.Writer) error {
 }
 
 //Decode decode node
-func (n *Node) Decode(reader io.Reader) error {
+func (n *Node[T]) Decode(reader io.Reader) error {
 	var err error
 	var control uint8
 	if err = binary.Read(reader, binary.LittleEndian, &control); err == nil {
@@ -185,7 +185,7 @@ func (n *Node) Decode(reader io.Reader) error {
 	return err
 }
 
-func (n *Node) decodeNodes(reader io.Reader) error {
+func (n *Node[T]) decodeNodes(reader io.Reader) error {
 	var err error
 	if !n.isEdgeType() {
 		return err
@@ -196,9 +196,9 @@ func (n *Node) decodeNodes(reader io.Reader) error {
 	if err = binary.Read(reader, binary.LittleEndian, &bset); err == nil {
 		n.bset = Bit64Set(bset)
 		if err = binary.Read(reader, binary.LittleEndian, &nodeLength); err == nil {
-			n.Nodes = make([]*Node, nodeLength)
+			n.Nodes = make([]*Node[T], nodeLength)
 			for i := range n.Nodes {
-				node := &Node{}
+				node := &Node[T]{}
 				n.Nodes[i] = node
 				if err = node.Decode(reader); err != nil {
 					return err
@@ -209,8 +209,8 @@ func (n *Node) decodeNodes(reader io.Reader) error {
 	return err
 }
 
-func newValueNode(prefix []byte, valueIndex uint32) *Node {
-	node := &Node{
+func newValueNode[T comparable](prefix []byte, valueIndex uint32) *Node[T] {
+	node := &Node[T]{
 		Prefix:     prefix,
 		ValueIndex: valueIndex,
 	}
